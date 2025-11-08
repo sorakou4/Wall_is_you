@@ -11,205 +11,258 @@ recommencer ; Échap = quitter.
 """
 
 from typing import List, Tuple
-import Donjon_version_corrigee as base
 import moteur
 import fltk
 
-Cell = Tuple[int, int]
+# Variables globales
+nb_lignes = 6
+nb_colonnes = 8
+nb_dragons = 5
+largeur_fenetre = 1000  # Augmenté pour avoir de l'espace pour les commandes
+hauteur_fenetre = 700   # Augmenté pour avoir plus d'espace vertical
+marge = 40
+marge_droite = 200  # Espace pour les commandes à droite
+taille_case = 0
+grille_x0 = 0
+grille_y0 = 0
+donjon = None
+aventurier = None
+dragons = None
+intention = []
 
+def nouvelle_partie():
+    global donjon, aventurier, dragons, intention
+    donjon, aventurier, dragons = moteur.creer_donjon(nb_lignes, nb_colonnes, nb_dragons)
+    intention = []
+    mettre_a_jour_taille_case()
+    rafraichir_affichage()
 
-class Interface:
-    def __init__(self, nb_lignes=6, nb_colonnes=8, nb_dragons=5):
-        self.nb_lignes = nb_lignes
-        self.nb_colonnes = nb_colonnes
-        self.nb_dragons = nb_dragons
+def mettre_a_jour_taille_case():
+    global taille_case, grille_x0, grille_y0
+    largeur_grille = largeur_fenetre - 2 * marge - marge_droite
+    hauteur_grille = hauteur_fenetre - 2 * marge
+    largeur_case = largeur_grille // nb_colonnes
+    hauteur_case = hauteur_grille // nb_lignes
+    taille_case = max(8, min(largeur_case, hauteur_case))
+    largeur_totale = taille_case * nb_colonnes
+    hauteur_totale = taille_case * nb_lignes
+    grille_x0 = marge + (largeur_grille - largeur_totale) // 2
+    grille_y0 = marge + (hauteur_grille - hauteur_totale) // 2
 
-        self.window_w = 800
-        self.window_h = 600
-        fltk.cree_fenetre(self.window_w, self.window_h)
+def obtenir_case_de_xy(x: int, y: int) -> Tuple[int, int]:
+    j = (x - grille_x0) // taille_case
+    i = (y - grille_y0) // taille_case
+    i = int(max(0, min(nb_lignes - 1, i)))
+    j = int(max(0, min(nb_colonnes - 1, j)))
+    return (i, j)
 
-        self.margin = 40
-        self.nouvelle_partie()
+def centre_de_case(case: Tuple[int, int]) -> Tuple[int, int]:
+    i, j = case
+    cx = grille_x0 + j * taille_case + taille_case // 2
+    cy = grille_y0 + i * taille_case + taille_case // 2
+    return cx, cy
 
-    def nouvelle_partie(self):
-        self.donjon, self.aventurier, self.dragons = base.creer_donjon(
-            self.nb_lignes, self.nb_colonnes, self.nb_dragons
-        )
-        self.intention: List[Cell] = []
-        self.update_cell_size()
-        self.redessiner()
+def afficher_commandes():
+    """Affiche la liste des commandes du jeu"""
+    x = largeur_fenetre - marge_droite + 20
+    y = 60
+    espacement = 30
 
-    def update_cell_size(self):
-        grid_w = self.window_w - 2 * self.margin
-        grid_h = self.window_h - 2 * self.margin
-        cw = grid_w // self.nb_colonnes
-        ch = grid_h // self.nb_lignes
-        self.cell_size = max(8, min(cw, ch))
-        total_w = self.cell_size * self.nb_colonnes
-        total_h = self.cell_size * self.nb_lignes
-        self.grid_x0 = self.margin + (grid_w - total_w) // 2
-        self.grid_y0 = self.margin + (grid_h - total_h) // 2
+    commandes = [
+        ("Commandes:", "black", 14),
+        ("", "black", 12),  # Espace
+        ("Clic gauche", "blue", 12),
+        ("→ Pivoter une salle", "black", 12),
+        ("", "black", 12),  # Espace
+        ("'i' + Clic gauche", "blue", 12),
+        ("→ Ajouter à l'intention", "black", 12),
+        ("", "black", 12),  # Espace
+        ("Espace", "blue", 12),
+        ("→ Valider l'intention", "black", 12),
+        ("", "black", 12),  # Espace
+        ("R", "blue", 12),
+        ("→ Nouvelle partie", "black", 12),
+        ("", "black", 12),  # Espace
+        ("Échap", "blue", 12),
+        ("→ Quitter", "black", 12),
+        ("", "black", 12),  # Espace
+    ]
 
-    def cell_from_xy(self, x: int, y: int) -> Cell:
-        j = (x - self.grid_x0) // self.cell_size
-        i = (y - self.grid_y0) // self.cell_size
-        i = int(max(0, min(self.nb_lignes - 1, i)))
-        j = int(max(0, min(self.nb_colonnes - 1, j)))
-        return (i, j)
+    for texte, couleur, taille in commandes:
+        fltk.texte(x, y, texte, couleur=couleur, ancrage='w', taille=taille)
+        y += espacement
 
-    def center_of_cell(self, cell: Cell) -> Tuple[int, int]:
-        i, j = cell
-        cx = self.grid_x0 + j * self.cell_size + self.cell_size // 2
-        cy = self.grid_y0 + i * self.cell_size + self.cell_size // 2
-        return cx, cy
+def rafraichir_affichage():
+    fltk.efface_tout()
+    
+    # Afficher les commandes
+    afficher_commandes()
+    
+    # Dessiner la grille
+    marge_case = 2  # Espace entre les cases en pixels
+    for i in range(nb_lignes):
+        for j in range(nb_colonnes):
+            # Calculer les coordonnées avec la marge
+            x0 = grille_x0 + j * taille_case + marge_case
+            y0 = grille_y0 + i * taille_case + marge_case
+            x1 = grille_x0 + (j + 1) * taille_case - marge_case
+            y1 = grille_y0 + (i + 1) * taille_case - marge_case
+            cx = (x0 + x1) // 2
+            cy = (y0 + y1) // 2
 
-    def redessiner(self):
-        fltk.efface_tout()
-        
-        for i in range(self.nb_lignes):
-            for j in range(self.nb_colonnes):
-                x0 = self.grid_x0 + j * self.cell_size
-                y0 = self.grid_y0 + i * self.cell_size
-                x1 = x0 + self.cell_size
-                y1 = y0 + self.cell_size
-                cx = (x0 + x1) // 2
-                cy = (y0 + y1) // 2
+            haut, droite, bas, gauche = donjon[i][j]
+            gap = (x1 - x0) // 3  # Ajuster la taille du passage en fonction de la nouvelle taille
 
-                haut, droite, bas, gauche = self.donjon[i][j]
-                gap = self.cell_size // 3
+            # Les murs sont dessinés avec un espace au milieu si le passage est ouvert
 
-                # haut
-                if not haut:
-                    fltk.ligne(x0, y0, x1, y0, couleur="black", epaisseur=2)
-                else:
-                    fltk.ligne(x0, y0, cx - gap//2, y0, couleur="black", epaisseur=2)
-                    fltk.ligne(cx + gap//2, y0, x1, y0, couleur="black", epaisseur=2)
+            # Dessin du mur du haut
+            if haut:  # Si le passage est ouvert
+                fltk.ligne(x0, y0, cx - gap//2, y0, couleur="black", epaisseur=2)
+                fltk.ligne(cx + gap//2, y0, x1, y0, couleur="black", epaisseur=2)
+            else:  # Si le mur est fermé
+                fltk.ligne(x0, y0, x1, y0, couleur="black", epaisseur=2)
 
-                # bas
-                if not bas:
-                    fltk.ligne(x0, y1, x1, y1, couleur="black", epaisseur=2)
-                else:
-                    fltk.ligne(x0, y1, cx - gap//2, y1, couleur="black", epaisseur=2)
-                    fltk.ligne(cx + gap//2, y1, x1, y1, couleur="black", epaisseur=2)
+            # Dessin du mur du bas
+            if bas:  # Si le passage est ouvert
+                fltk.ligne(x0, y1, cx - gap//2, y1, couleur="black", epaisseur=2)
+                fltk.ligne(cx + gap//2, y1, x1, y1, couleur="black", epaisseur=2)
+            else:  # Si le mur est fermé
+                fltk.ligne(x0, y1, x1, y1, couleur="black", epaisseur=2)
 
-                # gauche
-                if not gauche:
-                    fltk.ligne(x0, y0, x0, y1, couleur="black", epaisseur=2)
-                else:
-                    fltk.ligne(x0, y0, x0, cy - gap//2, couleur="black", epaisseur=2)
-                    fltk.ligne(x0, cy + gap//2, x0, y1, couleur="black", epaisseur=2)
+            # Dessin du mur de gauche
+            if gauche:  # Si le passage est ouvert
+                fltk.ligne(x0, y0, x0, cy - gap//2, couleur="black", epaisseur=2)
+                fltk.ligne(x0, cy + gap//2, x0, y1, couleur="black", epaisseur=2)
+            else:  # Si le mur est fermé
+                fltk.ligne(x0, y0, x0, y1, couleur="black", epaisseur=2)
 
-                # droite
-                if not droite:
-                    fltk.ligne(x1, y0, x1, y1, couleur="black", epaisseur=2)
-                else:
-                    fltk.ligne(x1, y0, x1, cy - gap//2, couleur="black", epaisseur=2)
-                    fltk.ligne(x1, cy + gap//2, x1, y1, couleur="black", epaisseur=2)
+            # Dessin du mur de droite
+            if droite:  # Si le passage est ouvert
+                fltk.ligne(x1, y0, x1, cy - gap//2, couleur="black", epaisseur=2)
+                fltk.ligne(x1, cy + gap//2, x1, y1, couleur="black", epaisseur=2)
+            else:  # Si le mur est fermé
+                fltk.ligne(x1, y0, x1, y1, couleur="black", epaisseur=2)
 
-        # dragons
-        for d in self.dragons:
-            pos, niveau = d
-            cx, cy = self.center_of_cell(pos)
-            r = int(self.cell_size * 0.15)
-            fltk.cercle(cx, cy, r, couleur="red", remplissage="red")
-            fltk.texte(cx, cy, str(niveau), couleur="white", ancrage="center", taille=max(8, r // 2))
+    # Dessiner les dragons
+    for dragon in dragons:
+        position, niveau = dragon
+        cx, cy = centre_de_case(position)
+        rayon = int((taille_case - 4) * 0.15)  # Ajuster la taille en fonction de la case réduite
+        fltk.cercle(cx, cy, rayon, couleur="red", remplissage="red")
+        fltk.texte(cx, cy, str(niveau), couleur="white", ancrage="center", taille=max(8, rayon // 2))
 
-        # aventurier
-        ax, ay = self.center_of_cell(self.aventurier[0])
-        r = int(self.cell_size * 0.15)
-        fltk.cercle(ax, ay, r, couleur="blue", remplissage="blue")
-        fltk.texte(ax, ay, str(self.aventurier[1]), couleur="white", ancrage="center", taille=max(8, r // 2))
+    # Dessiner l'aventurier
+    pos_x, pos_y = centre_de_case(aventurier[0])
+    rayon = int((taille_case - 4) * 0.15)  # Ajuster la taille en fonction de la case réduite
+    fltk.cercle(pos_x, pos_y, rayon, couleur="blue", remplissage="blue")
+    fltk.texte(pos_x, pos_y, str(aventurier[1]), couleur="white", ancrage="center", taille=max(8, rayon // 2))
 
-        # intention
-        if self.intention:
-            pts = [self.center_of_cell(self.intention[0])]
-            for c in self.intention[1:]:
-                pts.append(self.center_of_cell(c))
-            for a, b in zip(pts, pts[1:]):
-                fltk.ligne(a[0], a[1], b[0], b[1], couleur="red", epaisseur=3)
+    # Dessiner l'intention
+    if intention:
+        points = [centre_de_case(intention[0])]
+        for case in intention[1:]:
+            points.append(centre_de_case(case))
+        for point1, point2 in zip(points, points[1:]):
+            fltk.ligne(point1[0], point1[1], point2[0], point2[1], couleur="red", epaisseur=3)
 
+    fltk.mise_a_jour()
+
+def pivoter_case(case: Tuple[int, int]):
+    i, j = case
+    moteur.faire_pivoter_donjon(donjon, i, j)
+    rafraichir_affichage()
+
+def ajouter_a_intention(case: Tuple[int, int]):
+    global intention
+    if not intention or intention[-1] != case:
+        intention.append(case)
+        rafraichir_affichage()
+
+def effacer_intention():
+    global intention
+    intention = []
+    rafraichir_affichage()
+
+def appliquer_intention():
+    global aventurier
+    if not intention:
+        return
+    chemin = list(intention)
+    if chemin[0] != aventurier[0]:
+        chemin = [aventurier[0]] + chemin
+
+    resultat = moteur.appliquer_tour_aventurier(donjon, aventurier, dragons, chemin)
+    statut = resultat.get("statut")
+
+    if statut in ("en_cours", "victoire"):
+        chemin_restant = chemin[1:]
+        for position in chemin_restant:
+            aventurier[0] = position
+            if resultat.get("combat_message"):
+                print(resultat["combat_message"])  # Afficher le message de combat en console
+            rafraichir_affichage()
+            fltk.attente(0.18)
+
+    if statut == "victoire":
+        message = "Victoire ! Tous les dragons sont morts."
+        print(message)
+        fltk.texte(largeur_fenetre // 2, 20, message, couleur="green", ancrage="center", taille=20)
+        # Mettre à jour l'affichage, laisser le message visible puis fermer la fenêtre
         fltk.mise_a_jour()
+        fltk.attente(2)  # Attendre 2 secondes pour que le message soit visible
+        fltk.ferme_fenetre()
+        return
+    elif statut == "defaite":
+        message = f"Défaite ! {resultat.get('message', 'L''aventurier est mort.')}"
+        print(message)
+        fltk.texte(largeur_fenetre // 2, 20, message, couleur="red", ancrage="center", taille=20)
+        fltk.mise_a_jour()
+        fltk.attente(2)  # Attendre 2 secondes pour que le message soit visible
+        fltk.ferme_fenetre()
+        return
 
-    def toggle_rotate_cell(self, cell: Cell):
-        i, j = cell
-        base.pivot_donjon(self.donjon, i, j)
-        self.redessiner()
+    effacer_intention()
 
-    def add_to_intention(self, cell: Cell):
-        if not self.intention or self.intention[-1] != cell:
-            self.intention.append(cell)
-            self.redessiner()
+def programme_principal():
+    global largeur_fenetre, hauteur_fenetre
+    # Création de la fenêtre
+    fltk.cree_fenetre(largeur_fenetre, hauteur_fenetre)
+    nouvelle_partie()
 
-    def clear_intention(self):
-        self.intention = []
-        self.redessiner()
+    while True:
+        evenement = fltk.donne_ev()
+        if evenement is None:
+            fltk.mise_a_jour()
+            continue
 
-    def appliquer_intention(self):
-        if not self.intention:
-            return
-        chemin = list(self.intention)
-        if chemin[0] != self.aventurier[0]:
-            chemin = [self.aventurier[0]] + chemin
-
-        res = moteur.appliquer_tour_aventurier(self.donjon, self.aventurier, self.dragons, chemin)
-        status = res.get("status")
-
-        if status in ("ongoing", "win"):
-            path = chemin[1:]
-            for p in path:
-                self.aventurier[0] = p
-                self.redessiner()
-                fltk.attente(0.18)
-
-        if status == "win":
-            fltk.texte(self.window_w // 2, 20, "Victoire ! Tous les dragons sont morts.", couleur="green", ancrage="center", taille=20)
-        elif status == "lose":
-            fltk.texte(self.window_w // 2, 20, "Défaite ! L'aventurier est mort.", couleur="red", ancrage="center", taille=20)
-
-        self.intention = []
-        self.redessiner()
-
-    def run(self):
-        while True:
-            ev = fltk.donne_ev()
-            if ev is None:
-                fltk.mise_a_jour()
+        type_ev = fltk.type_ev(evenement)
+        if type_ev == "Quitte":
+            fltk.ferme_fenetre()
+            break
+        elif type_ev == "Redimension":
+            largeur_fenetre = fltk.largeur_fenetre()
+            hauteur_fenetre = fltk.hauteur_fenetre()
+            mettre_a_jour_taille_case()
+            rafraichir_affichage()
+        elif type_ev == "ClicGauche":
+            x = fltk.abscisse(evenement)
+            y = fltk.ordonnee(evenement)
+            if x is None or y is None:
                 continue
-
-            t = fltk.type_ev(ev)
-            if t == "Quitte":
+            case = obtenir_case_de_xy(int(x), int(y))
+            if fltk.touche_pressee('i'):
+                ajouter_a_intention(case)
+            else:
+                pivoter_case(case)
+        elif type_ev == "Touche":
+            touche = fltk.touche(evenement)
+            if touche == "Escape":
                 fltk.ferme_fenetre()
                 break
-            elif t == "Redimension":
-                self.window_w = fltk.largeur_fenetre()
-                self.window_h = fltk.hauteur_fenetre()
-                self.update_cell_size()
-                self.redessiner()
-            elif t == "ClicGauche":
-                x = fltk.abscisse(ev)
-                y = fltk.ordonnee(ev)
-                if x is None or y is None:
-                    continue
-                cell = self.cell_from_xy(int(x), int(y))
-                if fltk.touche_pressee('i'):
-                    self.add_to_intention(cell)
-                else:
-                    self.toggle_rotate_cell(cell)
-            elif t == "Touche":
-                key = fltk.touche(ev)
-                if key == "Escape":
-                    fltk.ferme_fenetre()
-                    break
-                elif key in ("r", "R"):
-                    self.nouvelle_partie()
-                elif key == "space":
-                    self.appliquer_intention()
-
-
-def main():
-    ui = Interface()
-    ui.run()
-
+            elif touche in ("r", "R"):
+                nouvelle_partie()
+            elif touche == "space":
+                appliquer_intention()
 
 if __name__ == '__main__':
-    main()
+    programme_principal()
