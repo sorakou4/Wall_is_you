@@ -11,6 +11,7 @@ recommencer ; Échap = quitter.
 """
 
 from typing import List, Tuple
+from pathlib import Path
 import moteur
 import fltk
 
@@ -30,22 +31,22 @@ aventurier = None
 dragons = None
 intention = []
 
-# Dictionnaire qui associe un état de salle (tuple) à un nom de fichier image
+# Dossier contenant les textures
+TEXTURE_DIR = Path(__file__).parent / 'texture'
+
+# Dictionnaire qui associe un état de salle (tuple) à un fichier image
 TEXTURE_MAP = {
-    # --- Couloirs ---
     # (haut, droite, bas, gauche)
-    (True, False, True, False): 'Wall_is_YOU(texture_non_fonctionelle)/texture/nord-sud.png',
-    (False, True, False, True): 'Wall_is_YOU(texture_non_fonctionelle)/texture/ouest-est.png',
+    (True, False, True, False): TEXTURE_DIR / 'nord-sud.png',
+    (False, True, False, True): TEXTURE_DIR / 'ouest-est.png',
 
-    # --- Coins ---
-    (True, True, False, False): 'Wall_is_YOU(texture_non_fonctionelle)/texture/nord-est.png',
-    (False, True, True, False): 'Wall_is_YOU(texture_non_fonctionelle)/texture/sud-est.png',
-    (False, False, True, True): 'Wall_is_YOU(texture_non_fonctionelle)/texture/ouest-sud.png',
-    (True, False, False, True): 'Wall_is_YOU(texture_non_fonctionelle)/texture/nord-ouest.png'
+    # Coins
+    (True, True, False, False): TEXTURE_DIR / 'nord-est.png',
+    (False, True, True, False): TEXTURE_DIR / 'sud-est.png',
+    (False, False, True, True): TEXTURE_DIR / 'ouest-sud.png',
+    (True, False, False, True): TEXTURE_DIR / 'nord-ouest.png',
 
-    # --- autres passages ( 3 ou 4 passages) ---
-    # (True, True, True, False): 'salle_T_bas.png',
-    # (True, True, True, True): 'salle_croix.png',
+    # autres variantes non utilisées par la génération actuelle peuvent être ajoutées
 }
 
 def nouvelle_partie():
@@ -68,17 +69,32 @@ def mettre_a_jour_taille_case():
     grille_y0 = marge + (hauteur_grille - hauteur_totale) // 2
 
 def obtenir_case_de_xy(x: int, y: int) -> Tuple[int, int]:
-    j = (x - grille_x0) // taille_case
-    i = (y - grille_y0) // taille_case
-    i = int(max(0, min(nb_lignes - 1, i)))
-    j = int(max(0, min(nb_colonnes - 1, j)))
-    return (i, j)
+    # Calculer la colonne et la ligne à partir des coordonnées souris
+    colonne = (x - grille_x0) // taille_case
+    ligne = (y - grille_y0) // taille_case
+    
+    # S'assurer que ligne et colonne sont dans les limites du donjon
+    if ligne < 0:
+        ligne = 0
+    if ligne >= nb_lignes:
+        ligne = nb_lignes - 1
+    if colonne < 0:
+        colonne = 0
+    if colonne >= nb_colonnes:
+        colonne = nb_colonnes - 1
+    
+    return (ligne, colonne)
 
 def centre_de_case(case: Tuple[int, int]) -> Tuple[int, int]:
-    i, j = case
-    cx = grille_x0 + j * taille_case + taille_case // 2
-    cy = grille_y0 + i * taille_case + taille_case // 2
-    return cx, cy
+    # Extraire la ligne et la colonne de la case
+    ligne = case[0]
+    colonne = case[1]
+    
+    # Calculer le centre de la case en pixels
+    centre_x = grille_x0 + colonne * taille_case + taille_case // 2
+    centre_y = grille_y0 + ligne * taille_case + taille_case // 2
+    
+    return (centre_x, centre_y)
 
 def afficher_commandes():
     """Affiche la liste des commandes du jeu"""
@@ -143,7 +159,7 @@ def rafraichir_affichage():
             if nom_image:
                 try:
                     fltk.image(cx, cy, 
-                               nom_image,
+                               str(nom_image),
                                largeur=(x1 - x0), 
                                hauteur=(y1 - y0), 
                                ancrage='center')
