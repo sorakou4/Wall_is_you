@@ -1,209 +1,194 @@
-"""
-Moteur du jeu "Wall Is You"
+"""Moteur du jeu Wall Is You"""
+from random import randrange as rnd, seed
 
-Ce fichier contient toutes les fonctionnalités nécessaires pour le jeu:
-- Création et gestion du donjon
-- Gestion des salles et leurs rotations
-- Création et gestion de l'aventurier et des dragons
-- Vérification des chemins et déplacements
-- Gestion des combats
-"""
-
-from random import randrange
-
-def creer_salle():
-    """Crée une salle avec tous les murs fermés"""
-    return (False, False, False, False)
-
-def creer_donjon(nb_lignes, nb_colonnes, nb_dragons):
-    """
-    Crée un donjon avec:
-    - Des salles ayant deux passages ouverts
-    - Un aventurier de niveau 1 placé aléatoirement
-    - Des dragons placés aléatoirement avec des niveaux croissants
-    """
-    # Création du donjon avec toutes les salles fermées
-    donjon = [[creer_salle() for _ in range(nb_colonnes)] for _ in range(nb_lignes)]
+def creer_donjon(nl, nc, nd, graine=None):
+    """Crée un donjon avec aventurier et dragons"""
+    if graine is not None:
+        seed(graine)
     
-    def trouver_voisins(ligne, colonne):
-        """Retourne les positions des salles voisines possibles"""
-        salles_voisines = []
-        if ligne > 0:
-            salles_voisines.append((ligne-1, colonne))
-        if ligne < nb_lignes - 1:
-            salles_voisines.append((ligne+1, colonne))
-        if colonne > 0:
-            salles_voisines.append((ligne, colonne-1))
-        if colonne < nb_colonnes - 1:
-            salles_voisines.append((ligne, colonne+1))
-        return salles_voisines
-
-    # Création du chemin en serpentin pour garantir deux passages par salle
-    toutes_salles = [(i, j) for i in range(nb_lignes) for j in range(nb_colonnes)]
-    for k in range(len(toutes_salles)-1):
-        salle1 = toutes_salles[k]
-        salle2 = toutes_salles[k+1]
-        i1, j1 = salle1
-        i2, j2 = salle2
+    # Créer le donjon et la liste des salles (serpentin)
+    donjon = [[(False, False, False, False) for _ in range(nc)] for _ in range(nl)]
+    salles = [(i, j) if i % 2 == 0 else (i, nc - 1 - j) for i in range(nl) for j in range(nc)]
+    
+    # États valides du TEXTURE_MAP
+    # Couloirs: (T, F, T, F), (F, T, F, T)
+    # Coins: (T, T, F, F), (F, T, T, F), (F, F, T, T), (T, F, F, T)
+    # Culs-de-sac: (T, F, F, F), (F, T, F, F), (F, F, T, F), (F, F, F, T)
+    
+    k = 0
+    while k < len(salles) - 1:
+        i1, j1 = salles[k]
+        i2, j2 = salles[k + 1]
+        s1, s2 = list(donjon[i1][j1]), list(donjon[i2][j2])
         
-        # Ouvrir les passages entre les salles
-        salle_actuelle = list(donjon[i1][j1])
-        salle_suivante = list(donjon[i2][j2])
+        if i1 == i2:
+            if j2 > j1:
+                s1[1], s2[3] = True, True
+            else:
+                s1[3], s2[1] = True, True
+        else:
+            if i2 > i1:
+                s1[2], s2[0] = True, True
+            else:
+                s1[0], s2[2] = True, True
         
-        if i1 == i2:  # Même ligne
-            if j2 > j1:  # Salle2 à droite
-                salle_actuelle[1] = True  # Ouvrir à droite
-                salle_suivante[3] = True  # Ouvrir à gauche
-            else:  # Salle2 à gauche
-                salle_actuelle[3] = True  # Ouvrir à gauche
-                salle_suivante[1] = True  # Ouvrir à droite
-        else:  # Même colonne
-            if i2 > i1:  # Salle2 en bas
-                salle_actuelle[2] = True  # Ouvrir en bas
-                salle_suivante[0] = True  # Ouvrir en haut
-            else:  # Salle2 en haut
-                salle_actuelle[0] = True  # Ouvrir en haut
-                salle_suivante[2] = True  # Ouvrir en bas
-        
-        donjon[i1][j1] = tuple(salle_actuelle)
-        donjon[i2][j2] = tuple(salle_suivante)
+        donjon[i1][j1], donjon[i2][j2] = tuple(s1), tuple(s2)
+        k = k + 1
 
-    # Création de l'aventurier : [position, niveau]
-    aventurier = [(randrange(nb_lignes), randrange(nb_colonnes)), 1]
+    # Mélanger l'orientation des salles
+    for i in range(nl):
+        for j in range(nc):
+            rotations = rnd(4)
+            s = donjon[i][j]
+            for _ in range(rotations):
+                s = (s[3], s[0], s[1], s[2])
+            donjon[i][j] = s
 
-    # Création des dragons : liste de [position, niveau]
+    aventurier = [[rnd(nl), rnd(nc)], 1]
     dragons = []
-    for niveau in range(2, 2 + nb_dragons):
-        position = (randrange(nb_lignes), randrange(nb_colonnes))
-        dragons.append([position, niveau])
-
+    occ = [aventurier[0][:]]
+    for n in range(1, 1 + nd):
+        while True:
+            p = [rnd(nl), rnd(nc)]
+            found = False
+            for occ_p in occ:
+                if occ_p == p:
+                    found = True
+                    break
+            if not found:
+                occ.append(p)
+                dragons.append([p, n])
+                break
+    
     return donjon, aventurier, dragons
 
-def faire_pivoter_salle(salle):
-    """Fait pivoter une salle de 90° vers la droite (sens horaire)"""
-    mur_haut, mur_droite, mur_bas, mur_gauche = salle
-    # Pour une rotation de 90° vers la droite (sens horaire) :
-    # - le mur du haut devient le mur de droite
-    # - le mur de droite devient le mur du bas
-    # - le mur du bas devient le mur de gauche
-    # - le mur de gauche devient le mur du haut
-    # Dans le tuple (haut, droite, bas, gauche), chaque élément se déplace
-    # d'une position vers la droite
-    return (mur_gauche, mur_haut, mur_droite, mur_bas)
+def creer_donjon_niveau1():
+    """Crée un donjon de niveau 1 (3 dragons, graine 42)"""
+    return creer_donjon(6, 8, 3, 42)
 
-def faire_pivoter_donjon(donjon, ligne, colonne):
-    """Fait pivoter la salle en position (ligne,colonne) du donjon"""
-    donjon[ligne][colonne] = faire_pivoter_salle(donjon[ligne][colonne])
+def creer_donjon_niveau2():
+    """Crée un donjon de niveau 2 (4 dragons, graine 123)"""
+    return creer_donjon(6, 8, 4, 123)
 
-def sont_salles_connectees(donjon, position1, position2):
-    """Vérifie si deux salles adjacentes sont connectées par un passage"""
-    ligne1, colonne1 = position1
-    ligne2, colonne2 = position2
-    salle1 = donjon[ligne1][colonne1]
-    salle2 = donjon[ligne2][colonne2]
+def creer_donjon_niveau3():
+    """Crée un donjon de niveau 3 (5 dragons, graine 456)"""
+    return creer_donjon(6, 8, 5, 456)
 
-    # Vérification des connexions selon la position relative
-    if ligne1 == ligne2:  # Même ligne
-        if colonne1 + 1 == colonne2:  # Salle2 à droite
-            return salle1[1] and salle2[3]
-        elif colonne1 - 1 == colonne2:  # Salle2 à gauche
-            return salle1[3] and salle2[1]
-    elif colonne1 == colonne2:  # Même colonne
-        if ligne1 + 1 == ligne2:  # Salle2 en bas
-            return salle1[2] and salle2[0]
-        elif ligne1 - 1 == ligne2:  # Salle2 en haut
-            return salle1[0] and salle2[2]
+def faire_pivoter_salle(s):
+    return (s[3], s[0], s[1], s[2])
+
+def faire_pivoter_donjon(d, i, j):
+    d[i][j] = faire_pivoter_salle(d[i][j])
+
+def sont_salles_connectees(d, p1, p2):
+    i1, j1 = p1
+    i2, j2 = p2
+    s1, s2 = d[i1][j1], d[i2][j2]
+    if i1 == i2:
+        return (j1 + 1 == j2 and s1[1] and s2[3]) or (j1 - 1 == j2 and s1[3] and s2[1])
+    if j1 == j2:
+        return (i1 + 1 == i2 and s1[2] and s2[0]) or (i1 - 1 == i2 and s1[0] and s2[2])
     return False
 
-def verifier_chemin(donjon, chemin):
-    """Vérifie si le chemin est valide (salles connectées)"""
-    if not chemin:
+def verifier_chemin(d, c):
+    if not c:
         return False
-    for index in range(len(chemin) - 1):
-        if not sont_salles_connectees(donjon, chemin[index], chemin[index + 1]):
+    i = 0
+    while i < len(c) - 1:
+        if not sont_salles_connectees(d, c[i], c[i+1]):
             return False
+        i = i + 1
     return True
 
-def trouver_dragon(dragons, position):
-    """Trouve un dragon à une position donnée"""
-    for index, dragon in enumerate(dragons):
-        if dragon[0] == position:
-            return index
+def trouver_dragon(dg, p):
+    p = tuple(p)
+    for i, d in enumerate(dg):
+        if tuple(d[0]) == p:
+            return i
     return None
 
-def partie_gagnee(dragons):
-    """Vérifie si la partie est gagnée (tous les dragons éliminés)"""
-    return len(dragons) == 0
+def deplacer_dragons(d, a, dg):
+    """Déplace chaque dragon d'une case si possible vers l'aventurier"""
+    occ = [dragon[0][:] for dragon in dg]
 
-def appliquer_tour_aventurier(donjon, aventurier, dragons, chemin):
-    """
-    Applique le déplacement de l'aventurier et gère les combats
-    Retourne un dictionnaire avec le statut et les mises à jour
-    """
-    if not chemin:
-        return {
-            "statut": "chemin_invalide",
-            "message": "Le chemin est vide.",
-            "aventurier": aventurier,
-            "dragons": dragons,
-        }
+    nl = len(d)
+    nc = len(d[0]) if nl > 0 else 0
+    nouveau = []
 
-    # Ajouter la position de départ si nécessaire
-    if chemin[0] != aventurier[0]:
-        chemin = [aventurier[0]] + chemin
+    for dragon_idx in range(len(dg)):
+        pos = dg[dragon_idx][0]
+        niveau = dg[dragon_idx][1]
+        voisins = []
+        x, y = pos[0], pos[1]
+        if x > 0 and sont_salles_connectees(d, [x, y], [x-1, y]):
+            voisins.append([x-1, y])
+        if x < nl-1 and sont_salles_connectees(d, [x, y], [x+1, y]):
+            voisins.append([x+1, y])
+        if y > 0 and sont_salles_connectees(d, [x, y], [x, y-1]):
+            voisins.append([x, y-1])
+        if y < nc-1 and sont_salles_connectees(d, [x, y], [x, y+1]):
+            voisins.append([x, y+1])
 
-    # Vérifier la validité du chemin
-    if not verifier_chemin(donjon, chemin):
-        return {
-            "statut": "chemin_invalide",
-            "message": "Le chemin n'est pas valide (salles non connectées).",
-            "aventurier": aventurier,
-            "dragons": dragons,
-        }
+        dist_act = abs(pos[0] - a[0][0]) + abs(pos[1] - a[0][1])
+        candidates = []
+        for v in voisins:
+            taken = any(occ_p == v for occ_p in occ)
+            if not taken:
+                dist_v = abs(v[0] - a[0][0]) + abs(v[1] - a[0][1])
+                if dist_v < dist_act:
+                    candidates.append(v)
 
-    # Déplacer l'aventurier et gérer les combats
-    for position_courante in chemin[1:]:
-        aventurier[0] = position_courante
-        indice_dragon = trouver_dragon(dragons, position_courante)
-        
-        if indice_dragon is not None:
-            dragon = dragons[indice_dragon]
-            if dragon[1] <= aventurier[1] + 1:
-                # L'aventurier gagne le combat
-                message_combat = f"Dragon niveau {dragon[1]} vaincu ! L'aventurier gagne 1 niveau."
-                del dragons[indice_dragon]
-                aventurier[1] += 1
+        if candidates:
+            choix = candidates[rnd(len(candidates))]
+            occ = [p for p in occ if p != pos]
+            occ.append(choix)
+            if tuple(choix) == tuple(a[0]):
+                if niveau <= a[1]:
+                    a[1] += 1
+                    continue
+                else:
+                    return ["defaite", "Dragon " + str(niveau) + " trop fort!", a, dg, None]
             else:
-                # L'aventurier perd le combat
-                return {
-                    "statut": "defaite",
-                    "message": f"L'aventurier (niveau {aventurier[1]}) a été vaincu par un dragon de niveau {dragon[1]} !",
-                    "aventurier": aventurier,
-                    "dragons": dragons,
-                }
+                nouveau.append([[choix[0], choix[1]], niveau])
+        else:
+            nouveau.append([[pos[0], pos[1]], niveau])
 
-    # Vérifier la victoire
-    if partie_gagnee(dragons):
-        return {
-            "statut": "victoire",
-            "message": "Victoire ! Tous les dragons ont été vaincus !",
-            "aventurier": aventurier,
-            "dragons": dragons,
-        }
+    dg[:] = nouveau
+    return None
 
-    return {
-        "statut": "en_cours",
-        "message": "Tour terminé.",
-        "combat_message": message_combat if 'message_combat' in locals() else None,
-        "aventurier": aventurier,
-        "dragons": dragons,
-    }
+def appliquer_tour_aventurier(d, a, dg, c):
+    """Retourne [statut, message, aventurier, dragons, combat_message]"""
+    if not c:
+        return ["chemin_invalide", "Le chemin est vide.", a, dg, None]
+    if c[0] != a[0]:
+        c = [a[0]] + c
+    if not verifier_chemin(d, c):
+        return ["chemin_invalide", "Chemin invalide.", a, dg, None]
+    
+    msg_combat = None
+    pos_idx = 1
+    while pos_idx < len(c):
+        pos = c[pos_idx]
+        a[0] = list(pos)
+        idx = trouver_dragon(dg, list(pos))
+        if idx is not None:
+            dr = dg[idx]
+            if dr[1] <= a[1]:
+                msg_combat = "Dragon " + str(dr[1]) + " vaincu !"
+                dg.pop(idx)
+                a[1] += 1
+            else:
+                return ["defaite", "Dragon " + str(dr[1]) + " trop fort!", a, dg, None]
+        pos_idx = pos_idx + 1
+    
+    if not dg:
+        return ["victoire", "Victoire!", a, dg, msg_combat]
+    
+    # Après le déplacement de l'aventurier, déplacer les dragons d'une case
+    res = deplacer_dragons(d, a, dg)
+    if res is not None:
+        return res
 
-def afficher_etat_jeu(donjon, aventurier, dragons):
-    """Affiche l'état du jeu (pour le débogage)"""
-    print("=== État du jeu ===")
-    print(f"Aventurier : position {aventurier[0]}, niveau {aventurier[1]}")
-    print("Dragons :")
-    for dragon in dragons:
-        print(f" - Dragon niveau {dragon[1]} en position {dragon[0]}")
-    print("===================")
+    if not dg:
+        return ["victoire", "Victoire!", a, dg, msg_combat]
+    return ["en_cours", "Continuer.", a, dg, msg_combat]

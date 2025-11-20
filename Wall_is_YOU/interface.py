@@ -10,7 +10,6 @@ ajouter à l'intention ; Espace = appliquer l'intention ; R =
 recommencer ; Échap = quitter.
 """
 
-from typing import List, Tuple
 import moteur
 import fltk
 
@@ -18,10 +17,11 @@ import fltk
 nb_lignes = 6
 nb_colonnes = 8
 nb_dragons = 5
-largeur_fenetre = 1000  # Augmenté pour avoir de l'espace pour les commandes
-hauteur_fenetre = 700   # Augmenté pour avoir plus d'espace vertical
+graine_donjon = None
+largeur_fenetre = 1000
+hauteur_fenetre = 700
 marge = 40
-marge_droite = 200  # Espace pour les commandes à droite
+marge_droite = 200
 taille_case = 0
 grille_x0 = 0
 grille_y0 = 0
@@ -30,12 +30,25 @@ aventurier = None
 dragons = None
 intention = []
 
-def nouvelle_partie():
-    global donjon, aventurier, dragons, intention
-    donjon, aventurier, dragons = moteur.creer_donjon(nb_lignes, nb_colonnes, nb_dragons)
-    intention = []
-    mettre_a_jour_taille_case()
-    rafraichir_affichage()
+ETATS_TEXTURE = [
+    ((True, False, True, False), 'texture/nord-sud.png'),
+    ((False, True, False, True), 'texture/ouest-est.png'),
+    ((True, True, False, False), 'texture/nord-est.png'),
+    ((False, True, True, False), 'texture/sud-est.png'),
+    ((False, False, True, True), 'texture/ouest-sud.png'),
+    ((True, False, False, True), 'texture/nord-ouest.png'),
+    ((True, False, False, False), 'texture/nord.png'),
+    ((False, True, False, False), 'texture/est.png'),
+    ((False, False, True, False), 'texture/sud.png'),
+    ((False, False, False, True), 'texture/ouest.png'),
+]
+
+def obtenir_texture_etat(etat_salle):
+    for etat, texture in ETATS_TEXTURE:
+        if etat == etat_salle:
+            return texture
+    return None
+
 
 def mettre_a_jour_taille_case():
     global taille_case, grille_x0, grille_y0
@@ -49,43 +62,42 @@ def mettre_a_jour_taille_case():
     grille_x0 = marge + (largeur_grille - largeur_totale) // 2
     grille_y0 = marge + (hauteur_grille - hauteur_totale) // 2
 
-def obtenir_case_de_xy(x: int, y: int) -> Tuple[int, int]:
+def obtenir_case_de_xy(x, y):
     j = (x - grille_x0) // taille_case
     i = (y - grille_y0) // taille_case
     i = int(max(0, min(nb_lignes - 1, i)))
     j = int(max(0, min(nb_colonnes - 1, j)))
     return (i, j)
 
-def centre_de_case(case: Tuple[int, int]) -> Tuple[int, int]:
+def centre_de_case(case):
     i, j = case
     cx = grille_x0 + j * taille_case + taille_case // 2
     cy = grille_y0 + i * taille_case + taille_case // 2
     return cx, cy
 
 def afficher_commandes():
-    """Affiche la liste des commandes du jeu"""
     x = largeur_fenetre - marge_droite + 20
     y = 60
     espacement = 30
 
     commandes = [
         ("Commandes:", "black", 14),
-        ("", "black", 12),  # Espace
+        ("", "black", 12),
         ("Clic gauche", "blue", 12),
         ("→ Pivoter une salle", "black", 12),
-        ("", "black", 12),  # Espace
-        ("'i' + Clic gauche", "blue", 12),
-        ("→ Ajouter à l'intention", "black", 12),
-        ("", "black", 12),  # Espace
+        ("", "black", 12),
+        ("'i' + Clic", "blue", 12),
+        ("→ Ajouter intention", "black", 12),
+        ("", "black", 12),
         ("Espace", "blue", 12),
-        ("→ Valider l'intention", "black", 12),
-        ("", "black", 12),  # Espace
+        ("→ Valider intention", "black", 12),
+        ("", "black", 12),
         ("R", "blue", 12),
         ("→ Nouvelle partie", "black", 12),
-        ("", "black", 12),  # Espace
+        ("", "black", 12),
         ("Échap", "blue", 12),
         ("→ Quitter", "black", 12),
-        ("", "black", 12),  # Espace
+        ("", "black", 12),
     ]
 
     for texte, couleur, taille in commandes:
@@ -94,15 +106,25 @@ def afficher_commandes():
 
 def rafraichir_affichage():
     fltk.efface_tout()
-    
-    # Afficher les commandes
+    niveau_aventurier = aventurier[1]
+    fltk.texte(largeur_fenetre // 2, hauteur_fenetre - 30,
+               "Niveau de l'aventurier : " + str(niveau_aventurier),
+               ancrage="center", taille=18, couleur="blue")
+
     afficher_commandes()
-    
-    # Dessiner la grille
-    marge_case = 2  # Espace entre les cases en pixels
+
+    largeur_donjon = taille_case * nb_colonnes
+    hauteur_donjon = taille_case * nb_lignes
+    epaisseur_bordure = 6
+    x0 = grille_x0 - epaisseur_bordure
+    y0 = grille_y0 - epaisseur_bordure
+    x1 = grille_x0 + largeur_donjon + epaisseur_bordure
+    y1 = grille_y0 + hauteur_donjon + epaisseur_bordure
+    fltk.rectangle(x0, y0, x1, y1, remplissage="black", couleur="black")
+
+    marge_case = 0
     for i in range(nb_lignes):
         for j in range(nb_colonnes):
-            # Calculer les coordonnées avec la marge
             x0 = grille_x0 + j * taille_case + marge_case
             y0 = grille_y0 + i * taille_case + marge_case
             x1 = grille_x0 + (j + 1) * taille_case - marge_case
@@ -110,69 +132,57 @@ def rafraichir_affichage():
             cx = (x0 + x1) // 2
             cy = (y0 + y1) // 2
 
-            haut, droite, bas, gauche = donjon[i][j]
-            gap = (x1 - x0) // 3  # Ajuster la taille du passage en fonction de la nouvelle taille
+            etat_salle = donjon[i][j]
+            nom_image = obtenir_texture_etat(etat_salle)
 
-            # Les murs sont dessinés avec un espace au milieu si le passage est ouvert
+            if nom_image:
+                try:
+                    fltk.image(cx, cy, nom_image,
+                               largeur=(x1 - x0), hauteur=(y1 - y0),
+                               ancrage='center')
+                except Exception as e:
+                    fltk.rectangle(x0, y0, x1, y1,
+                                   remplissage='pink', couleur='pink')
+            else:
+                fltk.rectangle(x0, y0, x1, y1,
+                               remplissage='grey', couleur='black')
 
-            # Dessin du mur du haut
-            if haut:  # Si le passage est ouvert
-                fltk.ligne(x0, y0, cx - gap//2, y0, couleur="black", epaisseur=2)
-                fltk.ligne(cx + gap//2, y0, x1, y0, couleur="black", epaisseur=2)
-            else:  # Si le mur est fermé
-                fltk.ligne(x0, y0, x1, y0, couleur="black", epaisseur=2)
+    # Dragons
+    for pos, niveau in dragons:
+        cx, cy = centre_de_case(pos)
+        fltk.image(cx, cy, "texture/dragon.png",
+                   largeur=int(taille_case*0.6),
+                   hauteur=int(taille_case*0.6),
+                   ancrage="center")
+        fltk.texte(cx, cy, str(niveau), couleur="red",
+                   ancrage="center", taille=12)
 
-            # Dessin du mur du bas
-            if bas:  # Si le passage est ouvert
-                fltk.ligne(x0, y1, cx - gap//2, y1, couleur="black", epaisseur=2)
-                fltk.ligne(cx + gap//2, y1, x1, y1, couleur="black", epaisseur=2)
-            else:  # Si le mur est fermé
-                fltk.ligne(x0, y1, x1, y1, couleur="black", epaisseur=2)
-
-            # Dessin du mur de gauche
-            if gauche:  # Si le passage est ouvert
-                fltk.ligne(x0, y0, x0, cy - gap//2, couleur="black", epaisseur=2)
-                fltk.ligne(x0, cy + gap//2, x0, y1, couleur="black", epaisseur=2)
-            else:  # Si le mur est fermé
-                fltk.ligne(x0, y0, x0, y1, couleur="black", epaisseur=2)
-
-            # Dessin du mur de droite
-            if droite:  # Si le passage est ouvert
-                fltk.ligne(x1, y0, x1, cy - gap//2, couleur="black", epaisseur=2)
-                fltk.ligne(x1, cy + gap//2, x1, y1, couleur="black", epaisseur=2)
-            else:  # Si le mur est fermé
-                fltk.ligne(x1, y0, x1, y1, couleur="black", epaisseur=2)
-
-    # Dessiner les dragons
-    for dragon in dragons:
-        position, niveau = dragon
-        cx, cy = centre_de_case(position)
-        rayon = int((taille_case - 4) * 0.15)  # Ajuster la taille en fonction de la case réduite
-        fltk.cercle(cx, cy, rayon, couleur="red", remplissage="red")
-        fltk.texte(cx, cy, str(niveau), couleur="white", ancrage="center", taille=max(8, rayon // 2))
-
-    # Dessiner l'aventurier
+    # Aventurier
     pos_x, pos_y = centre_de_case(aventurier[0])
-    rayon = int((taille_case - 4) * 0.15)  # Ajuster la taille en fonction de la case réduite
-    fltk.cercle(pos_x, pos_y, rayon, couleur="blue", remplissage="blue")
-    fltk.texte(pos_x, pos_y, str(aventurier[1]), couleur="white", ancrage="center", taille=max(8, rayon // 2))
+    fltk.image(pos_x, pos_y, "texture/aventurier.png",
+               largeur=int(taille_case * 0.6),
+               hauteur=int(taille_case * 0.6),
+               ancrage='center')
 
-    # Dessiner l'intention
+    # Intention
     if intention:
         points = [centre_de_case(intention[0])]
         for case in intention[1:]:
             points.append(centre_de_case(case))
-        for point1, point2 in zip(points, points[1:]):
-            fltk.ligne(point1[0], point1[1], point2[0], point2[1], couleur="red", epaisseur=3)
+        for i in range(len(points) - 1):
+            fltk.ligne(points[i][0], points[i][1],
+                       points[i+1][0], points[i+1][1],
+                       couleur="red", epaisseur=3)
 
     fltk.mise_a_jour()
 
-def pivoter_case(case: Tuple[int, int]):
+
+def pivoter_case(case):
     i, j = case
     moteur.faire_pivoter_donjon(donjon, i, j)
     rafraichir_affichage()
 
-def ajouter_a_intention(case: Tuple[int, int]):
+def ajouter_a_intention(case):
     global intention
     if not intention or intention[-1] != case:
         intention.append(case)
@@ -183,49 +193,74 @@ def effacer_intention():
     intention = []
     rafraichir_affichage()
 
+
 def appliquer_intention():
-    global aventurier
+    global aventurier, dragons
+
     if not intention:
         return
+
     chemin = list(intention)
     if chemin[0] != aventurier[0]:
         chemin = [aventurier[0]] + chemin
 
+    # APPEL AU MOTEUR
     resultat = moteur.appliquer_tour_aventurier(donjon, aventurier, dragons, chemin)
-    statut = resultat.get("statut")
+    statut = resultat[0]
+    message = resultat[1]
+    msg_combat = resultat[4]
 
+    # >>> PATCH : vérifier la défaite IMMEDIATEMENT <<<
+    if statut == "defaite":
+        print("Défaite !", message)
+        fltk.texte(largeur_fenetre // 2, 20, message,
+                   couleur="red", ancrage="center", taille=20)
+        fltk.mise_a_jour()
+        fltk.attente(2)
+        fltk.ferme_fenetre()
+        effacer_intention()
+        return
+    # >>> FIN PATCH <<<
+
+    # Animation SI l’aventurier est vivant
     if statut in ("en_cours", "victoire"):
         chemin_restant = chemin[1:]
         for position in chemin_restant:
-            aventurier[0] = position
-            if resultat.get("combat_message"):
-                print(resultat["combat_message"])  # Afficher le message de combat en console
+            aventurier[0] = list(position)
+            if msg_combat:
+                print(msg_combat)
             rafraichir_affichage()
-            fltk.attente(0.18)
+            fltk.attente(0.3)
+
+        # Déplacer les dragons
+        fltk.attente(0.5)
+        moteur.deplacer_dragons(donjon, aventurier, dragons)
+        rafraichir_affichage()
+        fltk.attente(0.3)
 
     if statut == "victoire":
-        message = "Victoire ! Tous les dragons sont morts."
-        print(message)
-        fltk.texte(largeur_fenetre // 2, 20, message, couleur="green", ancrage="center", taille=20)
-        # Mettre à jour l'affichage, laisser le message visible puis fermer la fenêtre
+        fltk.texte(largeur_fenetre // 2, 20, "Victoire !",
+                   couleur="green", ancrage="center", taille=20)
         fltk.mise_a_jour()
-        fltk.attente(2)  # Attendre 2 secondes pour que le message soit visible
+        fltk.attente(2)
         fltk.ferme_fenetre()
-        return
-    elif statut == "defaite":
-        message = f"Défaite ! {resultat.get('message', 'L''aventurier est mort.')}"
-        print(message)
-        fltk.texte(largeur_fenetre // 2, 20, message, couleur="red", ancrage="center", taille=20)
-        fltk.mise_a_jour()
-        fltk.attente(2)  # Attendre 2 secondes pour que le message soit visible
-        fltk.ferme_fenetre()
+        effacer_intention()
         return
 
     effacer_intention()
 
+
+def nouvelle_partie():
+    global donjon, aventurier, dragons, intention
+    donjon, aventurier, dragons = moteur.creer_donjon(
+        nb_lignes, nb_colonnes, nb_dragons, graine_donjon)
+    intention = []
+    mettre_a_jour_taille_case()
+    rafraichir_affichage()
+
 def programme_principal():
     global largeur_fenetre, hauteur_fenetre
-    # Création de la fenêtre
+
     fltk.cree_fenetre(largeur_fenetre, hauteur_fenetre)
     nouvelle_partie()
 
@@ -247,8 +282,6 @@ def programme_principal():
         elif type_ev == "ClicGauche":
             x = fltk.abscisse(evenement)
             y = fltk.ordonnee(evenement)
-            if x is None or y is None:
-                continue
             case = obtenir_case_de_xy(int(x), int(y))
             if fltk.touche_pressee('i'):
                 ajouter_a_intention(case)
@@ -264,5 +297,7 @@ def programme_principal():
             elif touche == "space":
                 appliquer_intention()
 
+
 if __name__ == '__main__':
+    nb_dragons = 3
     programme_principal()
