@@ -1,3 +1,8 @@
+# Projet Wall Is You - Tâche 1
+# Menu du jeu (interface graphique 2)
+# Auteur : Lohan, Daniel
+# Date : 21 novembre 2025
+
 import fltk
 import moteur
 import interface
@@ -14,11 +19,17 @@ COULEUR_BOUTON_HOVER = "grey"
 COULEUR_TEXTE = "black"
 
 # Etat de l'UI
+# Permet de simplifier la gestion du menu (affichage principal vs sous-menu).
 afficher_sous_boutons = False
 logo_emplacement = "texture/logo.png"
 
-# Boutons: chaque bouton est une liste [x, y, w, h, texte]
 def creer_boutons():
+    """
+    Crée et retourne les boutons principaux et secondaires du menu.
+    - Boutons principaux : Charger un donjon, Quitter, Retour
+    - Sous-boutons : Facile, Moyen, Difficile
+    Retourne : (btn_charger, btn_quitter, btn_retour, [sb1, sb2, sb3])
+    """
     w_btn = 220
     h_btn = 50
     gap = 20
@@ -42,37 +53,44 @@ def creer_boutons():
 btn_charger, btn_quitter, btn_retour, sous_boutons = creer_boutons()
 
 def bouton_contient(bouton, px, py):
-    x = bouton[0]
-    y = bouton[1]
-    w = bouton[2]
-    h = bouton[3]
+    """
+    Vérifie si un point (px, py) est à l'intérieur du bouton.
+    Retourne True si le clic est dans la zone du bouton.
+    """
+    x, y, w, h = bouton[0], bouton[1], bouton[2], bouton[3]
     return x <= px <= x + w and y <= py <= y + h
 
 def bouton_souris_hover(bouton, mx, my):
+    """
+    Vérifie si la souris (mx, my) survole le bouton.
+    Retourne True si la souris est au-dessus du bouton.
+    """
     if mx is None or my is None:
         return False
     return bouton_contient(bouton, mx, my)
 
 def dessiner_bouton(bouton, mx=None, my=None):
-    x = bouton[0]
-    y = bouton[1]
-    w = bouton[2]
-    h = bouton[3]
-    texte = bouton[4]
-    
+    """
+    Dessine un bouton rectangulaire avec son texte.
+    Change de couleur si la souris le survole.
+    """
+    x, y, w, h, texte = bouton
     hover = bouton_souris_hover(bouton, mx, my)
     couleur = COULEUR_BOUTON_HOVER if hover else COULEUR_BOUTON
     fltk.rectangle(x, y, x + w, y + h, remplissage=couleur, couleur="black")
     fltk.texte(x + w // 2, y + h // 2, texte, ancrage="center", couleur=COULEUR_TEXTE, taille=14)
 
 def dessiner_menu(mx=None, my=None):
+    """
+    Dessine l'écran du menu principal ou le sous-menu de sélection de donjon.
+    - mx, my : coordonnées de la souris pour gérer le survol des boutons.
+    """
     fltk.rectangle(0, 0, LARGEUR, HAUTEUR, remplissage=COULEUR_FOND, couleur=COULEUR_FOND)
 
     if afficher_sous_boutons:
-        zone_w = 360
-        zone_h = 220
-        zone_x = (LARGEUR - zone_w) // 2
-        zone_y = 180
+        # Zone de sélection de donjon
+        zone_w, zone_h = 360, 220
+        zone_x, zone_y = (LARGEUR - zone_w) // 2, 180
         fltk.rectangle(zone_x, zone_y, zone_x + zone_w, zone_y + zone_h, remplissage="darkgrey", couleur="black")
         fltk.texte(LARGEUR // 2, zone_y + 20, "Choisir un donjon", ancrage="center", taille=16, couleur="black")
 
@@ -83,10 +101,9 @@ def dessiner_menu(mx=None, my=None):
         fltk.mise_a_jour()
         return
 
-    logo_w = 360
-    logo_h = 140
-    logo_x = (LARGEUR - logo_w) // 2
-    logo_y = 60
+    # Logo
+    logo_w, logo_h = 360, 140
+    logo_x, logo_y = (LARGEUR - logo_w) // 2, 60
     fltk.rectangle(logo_x, logo_y, logo_x + logo_w, logo_y + logo_h, remplissage="white", couleur="black")
     fltk.texte(LARGEUR // 2, logo_y + logo_h // 2, "LOGO ICI", ancrage="center", taille=18, couleur="black")
     if logo_emplacement:
@@ -95,18 +112,28 @@ def dessiner_menu(mx=None, my=None):
         except Exception:
             pass
 
+    # Boutons principaux
     dessiner_bouton(btn_charger, mx, my)
     dessiner_bouton(btn_quitter, mx, my)
 
-    texte_bas = "Wall Is You — Prototype de menu"
-    fltk.texte(LARGEUR // 2, HAUTEUR - 18, texte_bas, ancrage="center", taille=12, couleur="black")
+    # Texte bas de page
+    texte_bas = "Wall Is You — Prototype de menu "
+    fltk.texte(LARGEUR // 2, HAUTEUR - 36, texte_bas, ancrage="center", taille=12, couleur="black")
+    texte_bas1 = "Fait par Lohan Tricoire et Daniel Preasca"
+    fltk.texte(LARGEUR // 2, HAUTEUR - 18, texte_bas1, ancrage="center", taille=8, couleur="black")
 
     fltk.mise_a_jour()
 
 def programme_menu():
+    """
+    Boucle principale du menu graphique.
+    - Gère les événements (clic, déplacement souris, touches, fermeture).
+    - Permet de lancer le jeu avec différents niveaux de donjon.
+    """
     global afficher_sous_boutons
     fltk.cree_fenetre(LARGEUR, HAUTEUR)
-    dessiner_menu()
+    x, y = LARGEUR // 2, HAUTEUR // 2
+    dessiner_menu(x, y)
 
     while True:
         ev = fltk.donne_ev()
@@ -121,34 +148,29 @@ def programme_menu():
         elif t == "Redimension":
             dessiner_menu()
         elif t == "ClicGauche":
-            x = fltk.abscisse(ev)
-            y = fltk.ordonnee(ev)
+            x, y = fltk.abscisse(ev), fltk.ordonnee(ev)
             if x is None or y is None:
                 continue
 
             if afficher_sous_boutons:
-                idx = 0
-                while idx < len(sous_boutons):
-                    sb = sous_boutons[idx]
+                # Choix du niveau de donjon
+                for idx, sb in enumerate(sous_boutons):
                     if bouton_contient(sb, x, y):
                         fltk.ferme_fenetre()
                         if idx == 0:
-                            interface.nb_dragons = 3
-                            interface.graine_donjon = 42
+                            interface.nb_dragons, interface.graine_donjon = 3, 42
                         elif idx == 1:
-                            interface.nb_dragons = 4
-                            interface.graine_donjon = 123
+                            interface.nb_dragons, interface.graine_donjon = 4, 123
                         elif idx == 2:
-                            interface.nb_dragons = 5
-                            interface.graine_donjon = 456
+                            interface.nb_dragons, interface.graine_donjon = 5, 456
                         interface.programme_principal()
                         break
-                    idx = idx + 1
                 if bouton_contient(btn_retour, x, y):
                     afficher_sous_boutons = False
                 dessiner_menu(x, y)
                 continue
 
+            # Boutons principaux
             if bouton_contient(btn_charger, x, y):
                 afficher_sous_boutons = True
                 dessiner_menu(x, y)
@@ -160,8 +182,7 @@ def programme_menu():
             dessiner_menu(x, y)
 
         elif t == "SourisDeplace":
-            mx = fltk.abscisse(ev)
-            my = fltk.ordonnee(ev)
+            mx, my = fltk.abscisse(ev), fltk.ordonnee(ev)
             dessiner_menu(mx, my)
         elif t == "Touche":
             key = fltk.touche(ev)

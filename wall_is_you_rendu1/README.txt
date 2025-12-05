@@ -1,9 +1,11 @@
+Par TRICOIRE Lohan et PREASCA Daniel
+
 ---Présentation générale---
 
-"Wall Is You" est un jeu de labyrinthe dans lequel un aventurier se déplace dans un donjon composé de salles orientées.
+"Wall Is You" est un jeu de labyrinthe en Python (Version 3.11.9) dans lequel un aventurier se déplace dans un donjon composé de salles orientées.
 Chaque salle possède des ouvertures (N, E, S, O).
-En cliquant, le joueur pivote une salle.
-En maintenant la touche i, il dessine un chemin que l'aventurier parcourra.
+En cliquant (clic gauche), le joueur pivote une salle.
+En cliquant (clic droit), il dessine un chemin que l'aventurier parcourra.
 L’aventurier combat les dragons rencontrés :
 
 Il gagne un niveau si le dragon est d’un niveau ≤ au sien
@@ -40,7 +42,7 @@ aventurier → Position + niveau de l’aventurier
 
 dragons → Liste des dragons (position + niveau)
 
-intention →	Liste de cases formant le chemin que l’aventurier va suivre
+intention → Liste de cases formant le chemin que l’aventurier va suivre
 
 ---Fonctionnement du jeu---
 
@@ -196,11 +198,11 @@ Vérifie victoire ou défaite
 
 Boucle événementielle FLTK :
 
-Clics
+Clic gauche
 
 Déplacements souris
 
-Touche 'i' ou espace
+Clic droit ou Espace
 
 Redimensionnements
 
@@ -226,9 +228,10 @@ Lancement du jeu (interface.programme_principal())
 
 1. Le joueur construit un chemin
 
-→ touche i + clics successifs
+→ Clics droits successifs
 
 2. Il valide (espace)
+
 3. Le moteur :
 
 Vérifie la validité du chemin
@@ -266,7 +269,7 @@ Le sujet ne précisait pas de créer plusieurs niveaux de difficulté pour les d
 
 ---Difficulté rencontrée---
 
-Nous avons rencontré des difficultés, principalement à cause des textures. Nous nous sommes trompés lors de la création initial des salles des donjons, et aucune salle n'était reconnue et donc cela ne fonctionnait pas. Pour mieux comprendre, on a décidé d'afficher en rose les salles où la texture ne s'affichait pas mais qui existaient et qui étaient reconnues pas le jeu, et en gris les salles qui n'étaient pas du tout reconnues pas le jeu. Cela a facilité l'analyse des problèmes.
+Nous avons rencontré des difficultés, principalement à cause des textures. Nous nous sommes trompés lors de la création initial des salles des donjons, et aucune salle n'était reconnue et donc cela ne fonctionnait pas. Pour mieux comprendre, on a décidé d'afficher en rose les salles où la texture ne s'affichait pas mais qui existaient et qui étaient reconnues pas le jeu, en jaune les salles qui n'ont aucun passage qui permet le déplacement et en gris les salles qui n'étaient pas du tout reconnues pas le jeu. Cela a facilité l'analyse des problèmes.
 
 Des problèmes entre tuples et listes ont été rencontré également, ce qui provoquait un bug du jeu qui ne tuait pas les dragons ou l'aventurier au moment où il le fallait.
 
